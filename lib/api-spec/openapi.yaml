@@ -3,20 +3,26 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: PRD-to-Evals API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: sessions
+    description: Evaluation generation sessions
+  - name: requirements
+    description: Extracted requirements within a session
+  - name: cases
+    description: Generated eval cases within a session
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +30,235 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /sessions:
+    post:
+      operationId: createSession
+      tags: [sessions]
+      summary: Create a new eval generation session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionInput"
+      responses:
+        "201":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  /sessions/{sessionId}:
+    get:
+      operationId: getSession
+      tags: [sessions]
+      summary: Get a session by ID
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "404":
+          description: Session not found
+
+  /sessions/{sessionId}/extract:
+    post:
+      operationId: extractRequirements
+      tags: [sessions]
+      summary: Stage 1 — extract testable requirements from the spec
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Requirements extracted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractResult"
+        "404":
+          description: Session not found
+
+  /sessions/{sessionId}/generate:
+    post:
+      operationId: generateCases
+      tags: [sessions]
+      summary: Stage 2 — generate eval cases for selected requirements
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateInput"
+      responses:
+        "200":
+          description: Cases generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateResult"
+        "404":
+          description: Session not found
+
+  /sessions/{sessionId}/requirements/{requirementId}:
+    patch:
+      operationId: updateRequirement
+      tags: [requirements]
+      summary: Update a requirement (include/exclude, edit text)
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: requirementId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequirementUpdate"
+      responses:
+        "200":
+          description: Requirement updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractedRequirement"
+        "404":
+          description: Not found
+
+  /sessions/{sessionId}/requirements/{requirementId}/regenerate:
+    post:
+      operationId: regenerateCasesForRequirement
+      tags: [requirements]
+      summary: Regenerate eval cases for a single requirement with optional nudge
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: requirementId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegenerateInput"
+      responses:
+        "200":
+          description: Cases regenerated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeneratedCase"
+        "404":
+          description: Not found
+
+  /sessions/{sessionId}/cases/{caseId}:
+    patch:
+      operationId: updateCase
+      tags: [cases]
+      summary: Approve, edit, or drop a generated case
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseUpdate"
+      responses:
+        "200":
+          description: Case updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedCase"
+        "404":
+          description: Not found
+
+  /sessions/{sessionId}/export:
+    post:
+      operationId: exportSession
+      tags: [sessions]
+      summary: Export approved cases as YAML and JSON
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Export data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportResult"
+        "404":
+          description: Session not found
+        "422":
+          description: Validation failed — some approved cases are invalid
+
+  /sessions/{sessionId}/coverage:
+    get:
+      operationId: getSessionCoverage
+      tags: [sessions]
+      summary: Get coverage summary — category distribution and uncovered requirements
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Coverage summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoverageSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +269,249 @@ components:
       required:
         - status
 
+    Session:
+      type: object
+      required: [id, specTitle, specText, stage, createdAt]
+      properties:
+        id:
+          type: string
+        specTitle:
+          type: string
+        specText:
+          type: string
+        stage:
+          type: string
+          enum: [input, extracting, reviewing_requirements, generating, reviewing_cases, exported]
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExtractedRequirement"
+        cases:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeneratedCase"
+        createdAt:
+          type: string
+
+    SessionInput:
+      type: object
+      required: [specText]
+      properties:
+        specText:
+          type: string
+          description: The raw spec / PRD text
+        specTitle:
+          type: string
+          description: Optional title derived from the spec
+
+    ExtractedRequirement:
+      type: object
+      required: [requirementId, text, sourceExcerpt, type, testable, ambiguityFlag, included]
+      properties:
+        requirementId:
+          type: string
+        text:
+          type: string
+        sourceExcerpt:
+          type: string
+        type:
+          type: string
+          enum: [capability, constraint, format, tool_use, non_testable]
+        testable:
+          type: boolean
+        ambiguityFlag:
+          type: boolean
+        suggestedRewrite:
+          type: ["string", "null"]
+        included:
+          type: boolean
+          description: Whether this requirement is included for case generation
+
+    ExtractResult:
+      type: object
+      required: [requirements, sessionId]
+      properties:
+        sessionId:
+          type: string
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExtractedRequirement"
+
+    EvalCaseMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+
+    EvalCaseGrader:
+      type: object
+      required: [type, rubric, passThreshold]
+      properties:
+        type:
+          type: string
+          enum: [llm_judge]
+        rubric:
+          type: string
+        passThreshold:
+          type: number
+
+    EvalCaseExpected:
+      type: object
+      required: [behaviour, graders]
+      properties:
+        behaviour:
+          type: string
+        graders:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvalCaseGrader"
+
+    EvalCaseInput:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvalCaseMessage"
+        context:
+          type: object
+          additionalProperties: true
+
+    EvalCase:
+      type: object
+      required: [id, suite, description, category, input, expected, weight, tags, sourceRequirement]
+      properties:
+        id:
+          type: string
+        suite:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          enum: [task_success, guardrail, format, tool_use]
+        input:
+          $ref: "#/components/schemas/EvalCaseInput"
+        expected:
+          $ref: "#/components/schemas/EvalCaseExpected"
+        weight:
+          type: number
+        tags:
+          type: array
+          items:
+            type: string
+        sourceRequirement:
+          type: string
+
+    GeneratedCase:
+      type: object
+      required: [id, case, sourceRequirementId, status]
+      properties:
+        id:
+          type: string
+        case:
+          $ref: "#/components/schemas/EvalCase"
+        sourceRequirementId:
+          type: string
+        status:
+          type: string
+          enum: [draft, approved, dropped]
+        generatorNotes:
+          type: ["string", "null"]
+
+    GenerateInput:
+      type: object
+      required: [requirementIds]
+      properties:
+        requirementIds:
+          type: array
+          items:
+            type: string
+          description: IDs of requirements to generate cases for
+        casesPerRequirement:
+          type: integer
+          description: Number of cases to generate per requirement (default 1-2)
+
+    GenerateResult:
+      type: object
+      required: [cases, sessionId]
+      properties:
+        sessionId:
+          type: string
+        cases:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeneratedCase"
+
+    RequirementUpdate:
+      type: object
+      properties:
+        included:
+          type: boolean
+        text:
+          type: string
+
+    RegenerateInput:
+      type: object
+      properties:
+        nudge:
+          type: ["string", "null"]
+          description: Optional instruction to guide regeneration (e.g. "make this stricter")
+
+    CaseUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [draft, approved, dropped]
+        case:
+          $ref: "#/components/schemas/EvalCase"
+
+    CoverageSummary:
+      type: object
+      required: [categoryDistribution, uncoveredRequirements, totalApproved, totalDropped, totalDraft]
+      properties:
+        categoryDistribution:
+          type: object
+          properties:
+            task_success:
+              type: integer
+            guardrail:
+              type: integer
+            format:
+              type: integer
+            tool_use:
+              type: integer
+        uncoveredRequirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExtractedRequirement"
+        totalApproved:
+          type: integer
+        totalDropped:
+          type: integer
+        totalDraft:
+          type: integer
+
+    ExportResult:
+      type: object
+      required: [yaml, json, caseCount]
+      properties:
+        yaml:
+          type: string
+          description: YAML-encoded approved cases
+        json:
+          type: string
+          description: JSON-encoded approved cases
+        caseCount:
+          type: integer
+        validationErrors:
+          type: array
+          items:
+            type: string

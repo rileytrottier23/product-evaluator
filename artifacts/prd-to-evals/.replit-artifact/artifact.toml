@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "PRD-to-Evals"
+version = "1.0.0"
+id = "artifacts/prd-to-evals"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19536
+
+[services.development]
+run = "pnpm --filter @workspace/prd-to-evals run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/prd-to-evals", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/prd-to-evals/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19536"
+BASE_PATH = "/"
