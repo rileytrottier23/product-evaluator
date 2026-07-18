@@ -5,10 +5,10 @@ import {
   useExportSession,
   getGetSessionCoverageQueryKey
 } from '@workspace/api-client-react';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CheckCircle2, Download, FileJson, FileCode2 } from 'lucide-react';
+import { CheckCircle2, FileJson, FileCode2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 export default function ExportPage() {
   const [, params] = useRoute('/session/:id/export');
@@ -62,13 +62,14 @@ export default function ExportPage() {
 
   if (isCoverageLoading || !coverage) {
     return (
-      <div className="max-w-3xl mx-auto py-12 text-center space-y-4">
+      <div className="max-w-4xl mx-auto py-12 text-center space-y-4">
+        <Skeleton className="h-16 w-32 mx-auto mb-8 rounded-full" />
         <Skeleton className="h-12 w-64 mx-auto mb-8" />
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
         </div>
       </div>
     );
@@ -76,69 +77,56 @@ export default function ExportPage() {
 
   return (
     <div className="max-w-4xl mx-auto py-12">
-      <div className="text-center mb-12">
-        <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CheckCircle2 className="w-8 h-8" />
+      <div className="text-center mb-16 flex flex-col items-center">
+        <div className="w-16 h-16 bg-[#0f172a] rounded-full flex items-center justify-center mb-6">
+          <CheckCircle2 className="w-8 h-8 text-[#2563eb]" />
         </div>
-        <h1 className="text-4xl font-bold tracking-tight mb-4">Ready for Export</h1>
-        <p className="text-xl text-muted-foreground">
-          You've approved <span className="font-semibold text-foreground">{coverage.totalApproved}</span> test cases.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-        <div className="bg-card border rounded-xl p-6 text-center space-y-2">
-          <div className="text-3xl font-bold">{coverage.categoryDistribution.task_success || 0}</div>
-          <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Task Success</div>
-        </div>
-        <div className="bg-card border rounded-xl p-6 text-center space-y-2">
-          <div className="text-3xl font-bold text-rose-600 dark:text-rose-500">{coverage.categoryDistribution.guardrail || 0}</div>
-          <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Guardrails</div>
-        </div>
-        <div className="bg-card border rounded-xl p-6 text-center space-y-2">
-          <div className="text-3xl font-bold text-purple-600 dark:text-purple-500">{coverage.categoryDistribution.format || 0}</div>
-          <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Format</div>
-        </div>
-        <div className="bg-card border rounded-xl p-6 text-center space-y-2">
-          <div className="text-3xl font-bold text-blue-600 dark:text-blue-500">{coverage.categoryDistribution.tool_use || 0}</div>
-          <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Tool Use</div>
+        <h1 className="text-5xl uppercase font-bold tracking-tight mb-4 text-[#0f172a]">EXPORT READY.</h1>
+        <div className="text-[#64748b] font-mono text-[12px] uppercase tracking-widest">
+          {coverage.totalApproved} CASES APPROVED FOR EXPORT
         </div>
       </div>
 
-      <div className="bg-muted/30 border rounded-2xl p-8 max-w-2xl mx-auto flex flex-col sm:flex-row gap-6">
-        <Button 
-          className="flex-1 h-20 text-lg flex flex-col items-center justify-center gap-2" 
-          variant="outline"
-          onClick={() => handleDownload('yaml')}
-          disabled={isExporting || coverage.totalApproved === 0}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-12">
+        <div className="bg-white border border-black/5 rounded-xl p-6 text-center card-hover shadow-sm flex flex-col justify-center min-h-[140px]">
+          <div className="text-4xl font-bold text-[#0f172a] mb-3">{coverage.categoryDistribution.task_success || 0}</div>
+          <div className="font-mono text-[10px] uppercase tracking-widest text-[#64748b]">Task Success</div>
+        </div>
+        <div className="bg-white border border-black/5 rounded-xl p-6 text-center card-hover shadow-sm flex flex-col justify-center min-h-[140px]">
+          <div className="text-4xl font-bold text-[#f59e0b] mb-3">{coverage.categoryDistribution.guardrail || 0}</div>
+          <div className="font-mono text-[10px] uppercase tracking-widest text-[#64748b]">Guardrails</div>
+        </div>
+        <div className="bg-white border border-black/5 rounded-xl p-6 text-center card-hover shadow-sm flex flex-col justify-center min-h-[140px]">
+          <div className="text-4xl font-bold text-[#9333ea] mb-3">{coverage.categoryDistribution.format || 0}</div>
+          <div className="font-mono text-[10px] uppercase tracking-widest text-[#64748b]">Format</div>
+        </div>
+        <div className="bg-white border border-black/5 rounded-xl p-6 text-center card-hover shadow-sm flex flex-col justify-center min-h-[140px]">
+          <div className="text-4xl font-bold text-[#22c55e] mb-3">{coverage.categoryDistribution.tool_use || 0}</div>
+          <div className="font-mono text-[10px] uppercase tracking-widest text-[#64748b]">Tool Use</div>
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-6 justify-center mt-16">
+        <div 
+          onClick={() => !isExporting && handleDownload('yaml')}
+          className={cn("bg-[#0f172a] text-white rounded-2xl p-10 flex flex-col items-center gap-4 transition-all card-hover w-full sm:w-[320px]", !isExporting && "cursor-pointer hover:bg-[#2563eb] hover:shadow-2xl hover:-translate-y-2", isExporting && "opacity-50")}
           data-testid="btn-download-yaml"
         >
-          <div className="flex items-center gap-2">
-            <FileCode2 className="w-5 h-5 text-muted-foreground" />
-            <span>Download YAML</span>
-          </div>
-          <span className="text-xs font-normal text-muted-foreground">Standard promptfoo format</span>
-        </Button>
+          <FileCode2 className="w-10 h-10 opacity-80 mb-2" />
+          <h2 className="text-3xl font-bold">YAML</h2>
+          <div className="font-mono text-[10px] uppercase tracking-widest text-white/60">Standard promptfoo format</div>
+        </div>
 
-        <Button 
-          className="flex-1 h-20 text-lg flex flex-col items-center justify-center gap-2"
-          onClick={() => handleDownload('json')}
-          disabled={isExporting || coverage.totalApproved === 0}
+        <div 
+          onClick={() => !isExporting && handleDownload('json')}
+          className={cn("bg-[#0f172a] text-white rounded-2xl p-10 flex flex-col items-center gap-4 transition-all card-hover w-full sm:w-[320px]", !isExporting && "cursor-pointer hover:bg-[#2563eb] hover:shadow-2xl hover:-translate-y-2", isExporting && "opacity-50")}
           data-testid="btn-download-json"
         >
-          <div className="flex items-center gap-2">
-            <FileJson className="w-5 h-5 opacity-80" />
-            <span>Download JSON</span>
-          </div>
-          <span className="text-xs font-normal opacity-80">For custom runners</span>
-        </Button>
+          <FileJson className="w-10 h-10 opacity-80 mb-2" />
+          <h2 className="text-3xl font-bold">JSON</h2>
+          <div className="font-mono text-[10px] uppercase tracking-widest text-white/60">For custom runners</div>
+        </div>
       </div>
-
-      {coverage.uncoveredRequirements.length > 0 && (
-        <p className="text-center mt-8 text-sm text-muted-foreground">
-          Note: {coverage.uncoveredRequirements.length} requirements do not have any approved test cases.
-        </p>
-      )}
     </div>
   );
 }

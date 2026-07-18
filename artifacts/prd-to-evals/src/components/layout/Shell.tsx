@@ -43,17 +43,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto flex h-14 items-center gap-8 px-4">
-          <Link href="/" className="font-semibold text-primary tracking-tight shrink-0 flex items-center gap-2" data-testid="link-home">
-            <div className="h-6 w-6 rounded-md bg-primary text-primary-foreground flex items-center justify-center font-bold text-xs">
-              PE
-            </div>
-            PRD-to-Evals
+      <header className="fixed top-4 left-4 right-4 z-50 flex justify-center pointer-events-none">
+        <div className="pointer-events-auto flex flex-row items-center justify-between p-2 rounded-full bg-white/90 backdrop-blur-md shadow-xl border border-black/5 h-16 max-w-5xl w-full mx-auto">
+          <Link href="/" className="px-4 font-bold text-[#0f172a] tracking-tight shrink-0 flex items-center" data-testid="link-home" style={{ fontFamily: 'Bricolage Grotesque, sans-serif' }}>
+            PRD-TO-EVALS<span className="text-[#2563eb]">.</span>
           </Link>
           
           <nav className="flex-1 flex items-center justify-center">
-            <ol className="flex items-center space-x-2 text-sm font-medium sm:space-x-4">
+            <ol className="flex items-center">
               {STAGES.map((stage, index) => {
                 const status = getStageStatus(stage.id, index);
                 const path = sessionId ? stage.path.replace(':id', sessionId) : (index === 0 ? '/' : '#');
@@ -61,28 +58,28 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 return (
                   <li key={stage.id} className="flex items-center">
                     {index !== 0 && (
-                      <div className="h-px w-4 sm:w-8 bg-border mr-2 sm:mr-4" aria-hidden="true" />
+                      <div className="w-6 h-px bg-black/10 mx-2" aria-hidden="true" />
                     )}
                     
                     {status === 'complete' || status === 'current' ? (
                       <Link 
                         href={path}
                         className={cn(
-                          "flex items-center gap-2 transition-colors",
-                          status === 'current' ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground"
+                          "transition-colors",
+                          status === 'current' 
+                            ? "bg-[#0f172a] text-white rounded-full px-4 py-1.5 font-mono text-[11px] uppercase tracking-widest flex items-center" 
+                            : "text-[#0f172a]/60 font-mono text-[11px] uppercase tracking-widest flex items-center hover:text-[#0f172a]"
                         )}
                         data-testid={`stepper-${stage.id}`}
                       >
                         {status === 'complete' && (
-                          <div className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px]">
-                            ✓
-                          </div>
+                          <span className="mr-1">✓</span>
                         )}
                         <span>{stage.label}</span>
                       </Link>
                     ) : (
                       <div 
-                        className="flex items-center gap-2 text-muted-foreground/60 cursor-not-allowed"
+                        className="text-[#0f172a]/40 font-mono text-[11px] uppercase tracking-widest cursor-not-allowed flex items-center"
                         data-testid={`stepper-${stage.id}-disabled`}
                       >
                         <span>{stage.label}</span>
@@ -94,9 +91,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </ol>
           </nav>
 
-          <div className="shrink-0 w-32 flex justify-end">
+          <div className="shrink-0 px-4 w-40 flex justify-end">
              {session?.specTitle && (
-                <div className="text-xs text-muted-foreground truncate max-w-[120px]" title={session.specTitle}>
+                <div className="font-mono text-[10px] uppercase tracking-widest text-[#64748b] truncate max-w-[140px]" title={session.specTitle}>
                   {session.specTitle}
                 </div>
              )}
@@ -104,7 +101,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="flex-1 container mx-auto px-4 py-8">
+      <main className="flex-1 pt-24 pb-8 container mx-auto px-4 max-w-5xl">
         {children}
       </main>
     </div>

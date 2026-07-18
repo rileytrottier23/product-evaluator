@@ -9,9 +9,7 @@ import {
   ExtractedRequirement
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, ArrowRight, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -21,30 +19,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-
-export function RequirementTypeBadge({ type }: { type: ExtractedRequirementType }) {
-  const styles: Record<ExtractedRequirementType, string> = {
-    capability: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-100',
-    constraint: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 hover:bg-amber-100',
-    format: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 hover:bg-purple-100',
-    tool_use: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-100',
-    non_testable: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-100',
-  };
-
-  const labels: Record<ExtractedRequirementType, string> = {
-    capability: 'Capability',
-    constraint: 'Constraint',
-    format: 'Format',
-    tool_use: 'Tool Use',
-    non_testable: 'Non-Testable',
-  };
-
-  return (
-    <Badge variant="secondary" className={cn('border-transparent font-medium', styles[type])}>
-      {labels[type]}
-    </Badge>
-  );
-}
 
 export default function RequirementsPage() {
   const [, params] = useRoute('/session/:id/requirements');
@@ -67,7 +41,7 @@ export default function RequirementsPage() {
 
   if (isLoading || !session) {
     return (
-      <div className="max-w-4xl mx-auto py-8 space-y-4">
+      <div className="w-full py-8 space-y-4">
         <Skeleton className="h-12 w-full max-w-sm mb-8" />
         {[1, 2, 3, 4, 5].map(i => (
           <Skeleton key={i} className="h-24 w-full rounded-lg" />
@@ -83,7 +57,6 @@ export default function RequirementsPage() {
 
   const handleToggle = async (reqId: string, currentlyIncluded: boolean) => {
     try {
-      // Optimistic update
       queryClient.setQueryData(getGetSessionQueryKey(sessionId!), (old: any) => {
         if (!old) return old;
         return {
@@ -100,7 +73,6 @@ export default function RequirementsPage() {
         data: { included: !currentlyIncluded },
       });
     } catch (error) {
-      // Revert on error by invalidating
       queryClient.invalidateQueries({ queryKey: getGetSessionQueryKey(sessionId!) });
       toast({
         title: 'Error updating requirement',
@@ -136,85 +108,102 @@ export default function RequirementsPage() {
     }
   };
 
+  const typeColors: Record<ExtractedRequirementType, string> = {
+    capability: '#2563eb',
+    constraint: '#f59e0b',
+    format: '#9333ea',
+    tool_use: '#22c55e',
+    non_testable: '#94a3b8'
+  };
+
+  const typePillStyles: Record<ExtractedRequirementType, string> = {
+    capability: 'bg-blue-50 text-blue-700',
+    constraint: 'bg-amber-50 text-amber-700',
+    format: 'bg-purple-50 text-purple-700',
+    tool_use: 'bg-green-50 text-green-700',
+    non_testable: 'bg-slate-100 text-slate-500',
+  };
+
   return (
-    <div className="max-w-5xl mx-auto py-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <div className="w-full py-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 w-full">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Review Requirements</h1>
-          <p className="text-muted-foreground mt-1">
-            {requirements.length} requirements found — {testableCount} testable, {nonTestableCount} non-testable.
-          </p>
+          <div className="text-[#2563eb] font-mono text-[10px] uppercase tracking-[0.4em] mb-2">REQUIREMENTS</div>
+          <h1 className="text-3xl font-bold tracking-tight mb-2">Review & Select</h1>
+          <div className="font-mono text-[11px] uppercase tracking-widest text-[#64748b]">
+            {requirements.length} requirements · {testableCount} testable · {nonTestableCount} non-testable
+          </div>
         </div>
-        <Button 
-          size="lg" 
+        <button 
           onClick={handleGenerate} 
           disabled={isGenerating || includedIds.length === 0}
+          className="bg-[#0f172a] text-white font-mono text-[11px] uppercase tracking-widest rounded-full px-6 py-3 flex items-center hover:bg-[#2563eb] disabled:opacity-50 disabled:hover:bg-[#0f172a] transition-colors"
           data-testid="button-generate-cases"
         >
           {isGenerating ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Generating cases for {includedIds.length} reqs...
+              GENERATING...
             </>
           ) : (
             <>
-              Generate Eval Cases
+              GENERATE CASES
               <ArrowRight className="w-4 h-4 ml-2" />
             </>
           )}
-        </Button>
+        </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {requirements.map(req => (
           <div 
             key={req.requirementId}
             className={cn(
-              "flex flex-col sm:flex-row gap-4 p-4 rounded-xl border bg-card transition-colors",
-              !req.included && "opacity-60 bg-muted/30",
+              "bg-white rounded-xl border border-black/5 shadow-sm card-hover p-5 relative overflow-hidden flex flex-row gap-4 transition-all",
+              !req.included && "opacity-60",
               req.type === 'non_testable' && "opacity-50"
             )}
             data-testid={`req-row-${req.requirementId}`}
           >
-            <div className="flex items-start gap-4 flex-1">
-              <div className="pt-1">
-                <Switch 
-                  checked={req.included} 
-                  onCheckedChange={() => handleToggle(req.requirementId, req.included)}
-                  disabled={isGenerating}
-                  data-testid={`switch-${req.requirementId}`}
-                />
+            <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: typeColors[req.type] }} />
+            
+            <div className="flex-1 flex flex-col justify-center py-1">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="font-mono text-[10px] bg-[#f1f5f9] px-2 py-0.5 rounded text-[#64748b]">
+                  {req.requirementId}
+                </span>
+                <span className={cn("rounded-full px-3 py-1 font-mono text-[10px] uppercase tracking-widest", typePillStyles[req.type])}>
+                  {req.type.replace('_', '-')}
+                </span>
               </div>
-              <div className="space-y-1.5 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                    {req.requirementId}
-                  </span>
-                  <RequirementTypeBadge type={req.type} />
-                </div>
-                
-                <p className={cn(
-                  "text-base leading-relaxed",
-                  !req.included && "text-muted-foreground"
-                )}>
-                  {req.text}
-                </p>
+              
+              <p className={cn("font-sans text-sm text-[#0f172a] leading-relaxed", !req.included && "text-[#64748b]")}>
+                {req.text}
+              </p>
 
-                {req.ambiguityFlag && req.suggestedRewrite && (
-                  <Collapsible className="mt-2">
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/50">
-                        <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
-                        Ambiguous — View suggestion
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="mt-2 text-sm bg-amber-50 dark:bg-amber-950/20 p-3 rounded-md border border-amber-100 dark:border-amber-900/50 text-amber-900 dark:text-amber-200">
-                      <span className="font-semibold block mb-1">Suggested rewrite for clarity:</span>
-                      {req.suggestedRewrite}
-                    </CollapsibleContent>
-                  </Collapsible>
-                )}
-              </div>
+              {req.ambiguityFlag && req.suggestedRewrite && (
+                <Collapsible className="mt-4">
+                  <CollapsibleTrigger asChild>
+                    <button className="flex items-center text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-medium hover:bg-amber-100 transition-colors">
+                      <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
+                      Ambiguous — View suggestion
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3 text-sm bg-amber-50 border border-amber-200 p-3 rounded-lg text-amber-900">
+                    <span className="font-semibold block mb-1">Suggested rewrite for clarity:</span>
+                    {req.suggestedRewrite}
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </div>
+
+            <div className="shrink-0 flex items-center pr-2">
+              <Switch 
+                checked={req.included} 
+                onCheckedChange={() => handleToggle(req.requirementId, req.included)}
+                disabled={isGenerating}
+                data-testid={`switch-${req.requirementId}`}
+              />
             </div>
           </div>
         ))}
