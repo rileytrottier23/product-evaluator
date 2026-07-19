@@ -1,0 +1,1 @@
+- [Vite build env vars](vite-build-env-vars.md) — PORT/BASE_PATH in vite.config.ts must default, not throw; [services.env] is dev-only and absent from production builds.
