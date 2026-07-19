@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { SessionError } from '@/components/ui/session-error';
 
 function CaseCard({ 
   generatedCase, 
@@ -151,10 +152,11 @@ export default function CasesPage() {
   const sessionId = params?.id;
   const [, setLocation] = useLocation();
 
-  const { data: session, isLoading: isSessionLoading } = useGetSession(sessionId!, {
+  const { data: session, isLoading: isSessionLoading, isError: isSessionError } = useGetSession(sessionId!, {
     query: {
       enabled: !!sessionId,
       queryKey: getGetSessionQueryKey(sessionId!),
+      retry: 1,
     },
   });
 
@@ -165,13 +167,17 @@ export default function CasesPage() {
     },
   });
 
-  if (isSessionLoading || !session) {
+  if (isSessionLoading) {
     return (
       <div className="w-full py-8 space-y-8">
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-[300px] w-full" />
       </div>
     );
+  }
+
+  if (isSessionError || !session) {
+    return <SessionError />;
   }
 
   const cases = session.cases || [];

@@ -7,6 +7,7 @@ import {
 } from '@workspace/api-client-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle2, FileJson, FileCode2 } from 'lucide-react';
+import { SessionError } from '@/components/ui/session-error';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -17,10 +18,11 @@ export default function ExportPage() {
 
   const [isExporting, setIsExporting] = useState(false);
 
-  const { data: coverage, isLoading: isCoverageLoading } = useGetSessionCoverage(sessionId!, {
+  const { data: coverage, isLoading: isCoverageLoading, isError: isCoverageError } = useGetSessionCoverage(sessionId!, {
     query: {
       enabled: !!sessionId,
       queryKey: getGetSessionCoverageQueryKey(sessionId!),
+      retry: 1,
     },
   });
 
@@ -59,6 +61,10 @@ export default function ExportPage() {
       setIsExporting(false);
     }
   };
+
+  if (isCoverageError) {
+    return <SessionError title="Session not found" message="This session may have expired. Sessions are kept for 24 hours." />;
+  }
 
   if (isCoverageLoading || !coverage) {
     return (

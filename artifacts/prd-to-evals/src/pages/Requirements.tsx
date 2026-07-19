@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, ArrowRight, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { SessionError } from '@/components/ui/session-error';
 import {
   Collapsible,
   CollapsibleContent,
@@ -29,17 +30,18 @@ export default function RequirementsPage() {
 
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const { data: session, isLoading } = useGetSession(sessionId!, {
+  const { data: session, isLoading, isError } = useGetSession(sessionId!, {
     query: {
       enabled: !!sessionId,
       queryKey: getGetSessionQueryKey(sessionId!),
+      retry: 1,
     },
   });
 
   const updateRequirement = useUpdateRequirement();
   const generateCases = useGenerateCases();
 
-  if (isLoading || !session) {
+  if (isLoading) {
     return (
       <div className="w-full py-8 space-y-4">
         <Skeleton className="h-12 w-full max-w-sm mb-8" />
@@ -48,6 +50,10 @@ export default function RequirementsPage() {
         ))}
       </div>
     );
+  }
+
+  if (isError || !session) {
+    return <SessionError />;
   }
 
   const requirements = session.requirements || [];

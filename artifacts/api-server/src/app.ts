@@ -84,9 +84,19 @@ const llmLimiter = rateLimit({
     "unknown",
 });
 
+// Session creation: moderate cap to prevent in-memory store exhaustion.
+const sessionCreateLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many sessions created. Please wait a moment." },
+});
+
 app.use("/api", globalLimiter);
 app.use("/api/sessions/:sessionId/extract", llmLimiter);
 app.use("/api/sessions/:sessionId/generate", llmLimiter);
+app.post("/api/sessions", sessionCreateLimiter);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api", router);

@@ -82,9 +82,15 @@ Return a JSON array of requirement objects as described. Include every distinct 
     "non_testable",
   ]);
 
-  return parsed
-    .filter((r) => r.text && r.type && validTypes.has(r.type as RequirementType))
-    .map((r, i) => ({
+  const valid = parsed.filter((r) => r.text && r.type && validTypes.has(r.type as RequirementType));
+
+  if (valid.length === 0) {
+    throw new Error(
+      "Requirement extraction returned no results. The spec may be too short or the model response was malformed."
+    );
+  }
+
+  return valid.map((r, i) => ({
       requirementId: `REQ-${String(i + 1).padStart(3, "0")}`,
       text: String(r.text).slice(0, 500),
       sourceExcerpt: String(r.sourceExcerpt ?? r.text).slice(0, 150),
@@ -177,6 +183,12 @@ Respond ONLY with a valid JSON array of case objects. No markdown, no explanatio
 
   const raw = extractText(response);
   const parsed = parseJsonArray<EvalCase>(raw);
+
+  if (parsed.length === 0) {
+    throw new Error(
+      "Case generation returned no results. The model response may have been malformed."
+    );
+  }
 
   // Pair each parsed case back to a source requirement and wrap in GeneratedCase
   const cases: GeneratedCase[] = [];
