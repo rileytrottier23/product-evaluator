@@ -1,8 +1,10 @@
 /**
  * In-memory session store.
  * v1 holds all state in process memory — no database needed.
- * A future version can swap this for Replit DB or Postgres.
+ * Session IDs are cryptographic UUIDs to prevent enumeration.
  */
+
+import { randomUUID } from "crypto";
 
 export type RequirementType = "capability" | "constraint" | "format" | "tool_use" | "non_testable";
 export type CaseCategory = "task_success" | "guardrail" | "format" | "tool_use";
@@ -73,12 +75,22 @@ export interface Session {
   createdAt: string;
 }
 
+// TTL: evict sessions older than 24 hours to prevent unbounded memory growth
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const sessions = new Map<string, Session>();
 
-let counter = 1;
+// Run cleanup every hour
+setInterval(() => {
+  const cutoff = Date.now() - SESSION_TTL_MS;
+  for (const [id, session] of sessions) {
+    if (new Date(session.createdAt).getTime() < cutoff) {
+      sessions.delete(id);
+    }
+  }
+}, 60 * 60 * 1000).unref();
 
 export function createSession(specText: string, specTitle?: string): Session {
-  const id = `session-${counter++}`;
+  const id = randomUUID();
   const title = specTitle ?? deriveTitle(specText);
   const session: Session = {
     id,
@@ -109,7 +121,11 @@ export function getRequirement(session: Session, requirementId: string): Extract
   return session.requirements.find((r) => r.requirementId === requirementId);
 }
 
-export function updateRequirement(session: Session, requirementId: string, patch: Partial<ExtractedRequirement>): ExtractedRequirement | undefined {
+export function updateRequirement(
+  session: Session,
+  requirementId: string,
+  patch: Partial<ExtractedRequirement>
+): ExtractedRequirement | undefined {
   const idx = session.requirements.findIndex((r) => r.requirementId === requirementId);
   if (idx === -1) return undefined;
   const updated = { ...session.requirements[idx], ...patch };
@@ -122,7 +138,11 @@ export function getCase(session: Session, caseId: string): GeneratedCase | undef
   return session.cases.find((c) => c.id === caseId);
 }
 
-export function updateCase(session: Session, caseId: string, patch: Partial<GeneratedCase>): GeneratedCase | undefined {
+export function updateCase(
+  session: Session,
+  caseId: string,
+  patch: Partial<GeneratedCase>
+): GeneratedCase | undefined {
   const idx = session.cases.findIndex((c) => c.id === caseId);
   if (idx === -1) return undefined;
   const updated = { ...session.cases[idx], ...patch };
@@ -132,10 +152,8 @@ export function updateCase(session: Session, caseId: string, patch: Partial<Gene
 }
 
 function deriveTitle(specText: string): string {
-  // Try to extract a heading
   const headingMatch = specText.match(/^#+ (.+)/m);
   if (headingMatch) return headingMatch[1].trim().slice(0, 60);
-  // Fallback: first non-empty line
   const firstLine = specText.split("\n").find((l) => l.trim().length > 0);
   return firstLine?.trim().slice(0, 60) ?? "Untitled Spec";
 }

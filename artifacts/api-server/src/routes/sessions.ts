@@ -11,7 +11,7 @@ import {
   type GeneratedCase,
   type ExtractedRequirement,
 } from "../lib/sessionStore";
-import { extractRequirements, generateCases } from "../lib/mockPipeline";
+import { extractRequirements, generateCases } from "../lib/llmPipeline";
 
 const router: IRouter = Router();
 
