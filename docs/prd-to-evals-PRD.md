@@ -1,0 +1,305 @@
+# PRD-to-Evals — Product Spec (Replit build)
+
+> **How to use this document with Replit:**
+> 1. Create a new Repl and open **Replit Agent**. Paste the **Replit Agent Build Prompt** (§0) to scaffold a working v1.
+> 2. Then paste the **Follow-up Refinement Prompts** (§11) one at a time, in order, to build up capability. Replit iterates through chat — don't paste them all at once.
+> 3. Put your `ANTHROPIC_API_KEY` in the **Secrets** tab (lock icon), never in code. The app reads it from the environment.
+> 4. When you want a live demo link, use Replit's **Deploy** button (Autoscale deployment is fine for this).
+>
+> **Interop contract:** the file this app exports must match the **Output Schema (§4)** exactly — that's the format the companion **Agent Eval Harness** (built separately) consumes. The two tools live in different environments, so the guarantee is the *format*, not a shared code module. Keep §4 unchanged.
+
+---
+
+## 0. Replit Agent Build Prompt (paste this first)
+
+> Build a web app called **PRD-to-Evals**. It turns a written product spec into a reviewable suite of test cases ("evals") for an AI agent.
+>
+> **User flow:** the user pastes a PRD / product spec (or uploads a `.md`/`.txt` file). The app then runs three stages, each visible to the user:
+> 1. **Extract requirements** — an LLM reads the spec and returns a structured list of *testable* requirements, marking which are hard constraints ("must not…", "only when…", "never…") and which are too vague to test (with a suggested sharper rewrite).
+> 2. **Generate eval cases** — for each requirement the user keeps, an LLM generates 1–2 structured test cases. Constraint requirements must produce **negative / guardrail** cases whose pass condition is that the agent *refuses* the behaviour. Each case gets a binary, specific grading rubric.
+> 3. **Review & export** — show every generated case next to the spec requirement it came from. The user can approve, edit, or drop each case. Nothing exports until the user approves. Export the approved cases as a downloadable **YAML file and JSON file**.
+>
+> **Rules:**
+> - Use the **Anthropic API** for the LLM stages. Read the key from the `ANTHROPIC_API_KEY` environment variable (I will set it in Secrets). Never hardcode it.
+> - Keep the three-stage pipeline logic in its own module(s), fully callable/testable **separate from the UI**, so the interface can be redesigned later without touching the logic.
+> - Every exported case must match this exact schema (do not change field names):
+>   ```yaml
+>   - id: <slug>-NNN
+>     suite: <from-spec-title>
+>     description: "<one line: what this case verifies>"
+>     category: task_success | guardrail | format | tool_use
+>     input:
+>       messages:
+>         - role: user
+>           content: "<the test prompt>"
+>       context: {}
+>     expected:
+>       behaviour: "<expected agent behaviour, traceable to a requirement>"
+>       graders:
+>         - type: llm_judge
+>           rubric: "<binary pass/fail rubric derived from the requirement>"
+>           pass_threshold: 0.7
+>     weight: 1.0
+>     tags: ["<requirement-id>", "<category>"]
+>     source_requirement: "<the spec text this case came from>"
+>   ```
+> - If the model returns invalid JSON at any stage, retry once automatically, then show a plain-language error.
+> - Start simple: a single spec in, a reviewed suite out. No login, no database required — hold session state in memory.
+>
+> Build a first working version, then I'll refine it with follow-up instructions.
+
+*(Everything below is the full spec behind that prompt — reference it when writing follow-up prompts or when you want to go deeper on a stage.)*
+
+---
+
+## TL;DR
+
+PMs write specs in prose; those requirements never become tests, so "did we build what we specified?" stays subjective. **PRD-to-Evals** ingests a PRD, spec, or feature brief and generates a set of structured, gradable eval cases — one per testable requirement — in the exact schema the Agent Eval Harness runs. It's **review-first**: it drafts, flags ambiguity, and requires human approval before export. Output drops straight into the harness, closing the loop from *requirement → eval → scorecard*. Built and hosted on Replit for a one-click live demo.
+
+---
+
+## Problem Statement
+
+- **Who is affected:** PMs and builders who write specs for AI features. The acceptance criteria they carefully write are never operationalized — nothing checks whether the shipped agent satisfies them.
+- **Current workaround & its cost:** Hand-writing eval cases from scratch (slow, skipped under deadline) or not at all, so "meets spec" becomes opinion. Specs and tests drift apart; requirements silently go unverified.
+- **Why now:** Evals are becoming the unit of AI quality, but authoring them is tedious — and the spec already contains the requirements. Bridging *PM artifact → eval artifact* is a novel, PM-native angle almost no tool occupies.
+
+> ⚠️ ASSUMPTION: Input specs are for **AI-agent features** (generated evals target agent behaviour). A non-AI spec still parses, but the eval format assumes an agent-under-test. State this scope in the UI.
+
+### Primary User
+
+**A product manager with some technical skills, building and testing an agent.** They write the specs, they care about coverage and ambiguity, and they can run an app and edit a YAML/JSON file — but they're not a full-time engineer. This should feel like a *PM's* tool: it reasons about requirements and test coverage (native PM territory) while keeping operation light. The same person builds the tool (in Replit) and uses it to generate evals for their own agent.
+
+**Design implications (treat as binding):**
+- Zero-setup to use: open the hosted URL, paste a spec, go. The only configuration is the API key in Secrets.
+- Plain-language errors (e.g. "The model returned invalid JSON for requirement REQ-3 — retrying once").
+- The review experience is the heart of the product and must stay legible to a PM, not require reading code to understand a case.
+
+---
+
+## Goals & Success Metrics
+
+**Product goals:**
+
+| Goal | Metric | Target | Measurement |
+|------|--------|--------|-------------|
+| Turn a spec into runnable evals | Pasted spec → valid eval cases | 100% schema-valid output | Cases match §4; harness accepts them |
+| Cover the real requirements | Testable requirements that get a case | ≥ 1 case per acceptance criterion | Manual coverage check on samples |
+| Generate the *right kinds* of tests | Output spans task_success, guardrail, format | Mix, not just happy-path | Category distribution shown before export |
+| Keep humans in control | No case exported without review | Review is mandatory | Export disabled until approved |
+| Close the loop | Exported file runs in the harness unmodified | End-to-end demo works | One spec → evals → scorecard |
+
+**Portfolio success** (keep in README):
+- Demonstrates a rare PM skill — making specs *executable* and reasoning about coverage, ambiguity, and negative cases.
+- The demo is one narrative: paste a PRD → get evals → run them in the harness → see a scorecard. The hosted Replit link makes it click-to-try, which is the whole reason to build it here.
+
+---
+
+## Non-Goals
+
+- **Not** an eval *runner* — it generates cases; the harness runs them.
+- **Not** a spec *writer* — it consumes finished specs.
+- **Not** a fully-autonomous generator — human review is a feature. Do not add an "auto-export, skip review" mode.
+- **Not** a requirements-management tool (no Jira sync / traceability matrix in v1 — a natural v2 to name in the README).
+
+---
+
+## 4. Output Schema (the interop contract — authoritative)
+
+Every generated case must conform to this. It is identical to the Agent Eval Harness case schema; do not diverge.
+
+```yaml
+- id: <slug>-NNN                   # generated: derived from requirement + counter
+  suite: <from-spec-title>
+  description: "<what this case verifies, one line>"
+  category: task_success | guardrail | format | tool_use
+  input:
+    messages:
+      - role: user
+        content: "<the test prompt the tool generates>"
+    context: {}
+  expected:
+    behaviour: "<the expected agent behaviour, traceable to a spec requirement>"
+    graders:
+      - type: llm_judge
+        rubric: "<pass/fail rubric derived from the acceptance criterion>"
+        pass_threshold: 0.7
+  weight: 1.0
+  tags: ["<requirement-id>", "<category>"]
+  source_requirement: "<verbatim or lightly-normalized text from the spec>"   # traceability
+```
+
+`source_requirement` links each eval back to the spec line it came from. The harness ignores unknown fields, so this is safe and gives you a **traceability story** (every test maps to a requirement) that reads as very senior.
+
+---
+
+## Proposed Solution
+
+Three stages, each inspectable in the UI:
+
+1. **Parse & extract requirements.** LLM extracts a structured list of *testable* requirements, distinguishing hard requirements from prose. Output per item: `{requirement_id, text, source_excerpt, type, testable, ambiguity_flag, suggested_rewrite}`.
+2. **Generate eval cases.** For each testable requirement, generate 1–2 cases in the §4 schema, choosing `category` and drafting a rubric. Constraint language ("must not", "only", "never", "unless") generates **guardrail / negative cases** — this is where the tool earns its keep.
+3. **Review & export.** Present every draft case beside its source requirement and any ambiguity flags. The user edits, approves, or drops each. Approved cases export as YAML + JSON, ready for the harness.
+
+**Key design decisions & rationale:**
+- **Extraction and generation are separate, visible stages.** Showing extracted requirements first lets the user catch "you missed requirement X" before generation runs on the wrong things.
+- **The tool must generate negative/guardrail cases, not just happy paths.** The most common eval-authoring failure is testing only success. Prompt the generator explicitly to derive "should refuse / only-if" cases from constraint language.
+- **Ambiguity is surfaced, not silently resolved.** If a requirement is untestable as written ("be helpful"), flag it and propose a sharper, testable rewrite rather than inventing a rubric.
+- **Review is mandatory.** Generated evals are a draft; shipping unreviewed machine-written tests is the credibility trap this tool deliberately avoids.
+
+---
+
+## Requirements
+
+### Must Have (P0)
+- Accept spec input via paste (textarea) and file upload (`.md`, `.txt`).
+- **Stage 1:** extract a reviewable list of testable requirements, each with a type and an `ambiguity_flag` + suggested rewrite when untestable.
+- **Stage 2:** generate ≥1 schema-valid case per approved requirement, selecting `category` and drafting an `llm_judge` rubric; generate guardrail/negative cases from constraint language.
+- **Stage 3:** review interface showing each case beside its `source_requirement` and ambiguity flags; per-case approve / edit / drop.
+- Validate all cases against the §4 schema; block export if any approved case is invalid.
+- Export approved cases as a single YAML **and** JSON file (downloadable in-browser).
+- **Zero-setup operation:** works from the hosted URL with only `ANTHROPIC_API_KEY` set in Secrets; plain-language errors, with one automatic retry on malformed model output.
+
+### Should Have (P1)
+- Category-distribution summary before export (e.g. "8 task_success, 3 guardrail, 2 format") to spot a happy-path-only suite.
+- Coverage view: list any extracted requirement with **zero** approved cases.
+- Re-generate a single case with a nudge ("make this stricter", "add an edge case").
+- Editable generation settings: target model, cases-per-requirement, whether to always attempt a guardrail counterpart.
+
+### Nice to Have (P2)
+- Traceability matrix export (requirement → case ids) as Markdown.
+- Import an existing suite and suggest *missing* cases relative to a spec (gap analysis).
+- Save sessions (would require adding Replit's built-in database — see §10).
+
+---
+
+## User Stories
+
+- As a **PM**, I paste my PRD and get a first draft of the eval suite instead of authoring cases by hand.
+- As a **PM**, the tool tells me which requirements are too vague to test so I can sharpen the spec.
+- As a **builder**, the export runs in the harness with no edits so the loop is real.
+- As a **reviewer**, I can see which spec line each test came from so I trust the coverage.
+
+---
+
+## Prompt Design (the actual product IP — spec it carefully)
+
+Keep prompts as editable files/constants, not buried inline.
+
+**Extraction prompt must:**
+- Return **only** JSON (a list of requirement objects).
+- Separate testable requirements from aspirational prose; mark the latter `type: non_testable` with a `suggested_rewrite`.
+- Detect constraint language and mark it `type: constraint` so Stage 2 makes a guardrail case.
+- Never invent requirements; every item carries a `source_excerpt` from the spec.
+
+**Generation prompt must:**
+- Take one requirement and emit schema-valid case(s) as JSON only.
+- For `constraint` requirements, generate a **negative case** whose rubric passes only if the agent refuses/avoids the behaviour.
+- Write rubrics that are binary and specific ("Passes only if X and not Y"), never vague.
+- Include `generator_notes` explaining the category and rubric choice so the reviewer can audit intent.
+- Set `category` correctly: format assertions → `format`; "should call tool Z" → `tool_use`; refusals/boundaries → `guardrail`; else → `task_success`.
+
+> ❓ OPEN: One requirement can imply several cases (happy + edge + negative). Default to **1–2** per requirement to avoid overwhelming review, with a per-requirement "generate more" control. Documenting this restraint in the README is a PM signal — over-generation is the obvious failure mode.
+
+---
+
+## Conceptual Data Shapes
+
+Replit Agent will choose the implementation; these are the shapes to preserve, not a required library.
+
+```
+ExtractedRequirement:
+  requirement_id (e.g. REQ-004), text, source_excerpt,
+  type: capability | constraint | format | tool_use | non_testable,
+  testable (bool), ambiguity_flag (bool), suggested_rewrite (when not testable)
+
+GeneratedCase:
+  case (a full eval-case object per §4),
+  source_requirement_id,
+  status: draft | approved | dropped,
+  generator_notes
+
+GenerationSession (in memory unless persistence is added):
+  session_id, spec_title, spec_text, requirements[], cases[]
+```
+
+---
+
+## Keep These Concerns Separate
+
+Don't prescribe a file tree to Replit — but insist the following stay decoupled so the UI can be redesigned later:
+
+- **Schema + validation** — the §4 shape and a validator. This is the interop contract.
+- **Extraction** — spec text → requirements.
+- **Generation** — requirement → case(s).
+- **Export** — approved cases → YAML + JSON.
+- **UI layer** — paste, review, approve/edit/drop, download. Talks only to the above; holds no business logic.
+
+The first four must be usable without the UI (so you can test the pipeline directly). **Visual and interaction design will be provided by the user later** — build a clean, functional interface for now and expect to replace it.
+
+---
+
+## 10. Replit Specifics
+
+- **Secrets:** store `ANTHROPIC_API_KEY` in the Secrets tab. The app reads `os.environ["ANTHROPIC_API_KEY"]` (or the JS equivalent). Never commit it; never paste it into code.
+- **Hosting / demo link:** use **Deploy** when ready. Autoscale deployment suits a paste-in / paste-out tool with no long-running state. The deployed URL is your portfolio artifact — put it in the build-in-public post.
+- **Persistence (optional):** v1 needs none — session state in memory is fine, and export is a download. Only if you add "save/reload sessions" (P2) should you bring in Replit's built-in database or Postgres. Don't add a DB before you need it.
+- **Stack:** let Replit Agent scaffold the web layer. Suggest Python for the pipeline to stay conceptually aligned with the harness, but the interop guarantee is the exported *format*, not shared code — so any stack that emits §4-conformant YAML/JSON is acceptable.
+
+---
+
+## 11. Build Approach — Follow-up Refinement Prompts
+
+After the §0 build prompt gives you a working v1, paste these **one at a time**, checking the app after each. This replaces a rigid milestone plan with Replit's chat-iteration style.
+
+1. **Harden extraction.** "In the extract stage, make sure requirements using 'must not', 'only', 'never', or 'unless' are marked as constraints, and mark vague requirements (like 'be helpful') as non-testable with a suggested sharper rewrite. Show the extracted requirements in a list I can review before generating cases."
+2. **Guardrail generation.** "When a requirement is a constraint, generate a negative test case whose rubric passes ONLY if the agent refuses or avoids the behaviour. Make all rubrics binary and specific."
+3. **Review controls.** "In the review step, show each generated case next to the exact spec requirement it came from, and let me approve, edit, or drop each case individually. Disable export until I've approved at least one case."
+4. **Schema-locked export.** "Validate every approved case against the required schema and block export if any are invalid. Export as both a downloadable .yaml and .json file."
+5. **Coverage + distribution (P1).** "Before export, show me a count of cases by category and flag any extracted requirement that has zero approved cases."
+6. **Polish for demo.** "Add a sample spec I can load with one click so someone can try the tool without writing their own PRD." *(Use the billing-agent example from the Appendix.)*
+
+Stop after step 4 for a complete, demoable tool. Steps 5–6 are the polish that make it a strong portfolio piece.
+
+---
+
+## Technical Considerations
+
+- **Determinism:** generation is non-deterministic — that's *why* review is mandatory. Frame this as a design principle in the README, not a flaw.
+- **Robustness:** enforce strict-JSON model output; on parse failure, re-prompt once with the error before surfacing a plain-language message.
+- **Cost:** each spec triggers a few LLM calls (one extract + one per requirement). For a demo this is cheap; note it, and let the user cap cases-per-requirement.
+- **Interop:** the exported file must match §4 exactly. Test this by dropping a real export into the harness's `suites/` folder and running it.
+
+---
+
+## Open Questions
+
+| Question | Recommendation | Note |
+|----------|----------------|------|
+| Cases per requirement | 1–2 default, "generate more" on demand | Avoid drowning the review step |
+| Non-testable requirements | Flag + suggest rewrite; never fabricate a rubric | Strong PM talking point |
+| Persist sessions? | Not in v1; add Replit DB only for the P2 save feature | Don't add infra early |
+
+---
+
+## Appendix — Worked Example (include in README)
+
+**Spec excerpt (input):**
+> "The billing agent must issue refunds for double-charges within the 30-day window. It must **not** issue refunds for requests older than 30 days, and must explain the policy when declining."
+
+**Extracted requirements (Stage 1):**
+- `REQ-1` capability, testable — issues refund for in-window double-charge.
+- `REQ-2` constraint, testable — must *not* refund > 30 days; must explain policy.
+
+**Generated cases (Stage 2):**
+- `task_success` case for REQ-1 (in-policy refund initiated).
+- `guardrail` case for REQ-2 (out-of-window request → passes only if declined *and* policy explained, no refund).
+
+**Then:** export → drop into harness → run → scorecard. One spec, two evals, one number.
+
+---
+
+## Portfolio Framing (README opener)
+
+> Specs describe what an AI feature *should* do; nothing usually checks that it does. **PRD-to-Evals** reads a PRD and generates a structured, reviewable eval suite — one gradable test per requirement, including the negative/guardrail cases teams routinely forget — in a format that runs directly in a companion eval harness. It's review-first by design: it drafts and flags ambiguity, but a human approves every test. Paste a spec, get a runnable test suite, see a scorecard. **This is the requirement-to-verification loop, built by a PM.**
+
