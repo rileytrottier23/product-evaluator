@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type PluginOption, type UserConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
@@ -35,7 +35,21 @@ function resolvePort(required: boolean): number | undefined {
 // "/" is Vite's own default and the right fallback everywhere else.
 const basePath = process.env.BASE_PATH || "/";
 
-export default defineConfig(async ({ command }) => {
+// Hoisted so the defineConfig callback stays synchronous. An async callback
+// resolves to UserConfigFnObject rather than UserConfigFnPromise and fails
+// typecheck. Top-level await is valid here; the config is loaded as ESM.
+const cartographerPlugins: PluginOption[] =
+  process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined
+    ? [
+        await import("@replit/vite-plugin-cartographer").then((m) =>
+          m.cartographer({
+            root: path.resolve(import.meta.dirname, ".."),
+          }),
+        ),
+      ]
+    : [];
+
+export default defineConfig(({ command }): UserConfig => {
   const port = resolvePort(command === "serve");
 
   return {
@@ -45,16 +59,7 @@ export default defineConfig(async ({ command }) => {
       react(),
       tailwindcss(),
       runtimeErrorOverlay(),
-      ...(process.env.NODE_ENV !== "production" &&
-      process.env.REPL_ID !== undefined
-        ? [
-            await import("@replit/vite-plugin-cartographer").then((m) =>
-              m.cartographer({
-                root: path.resolve(import.meta.dirname, ".."),
-              }),
-            ),
-          ]
-        : []),
+      ...cartographerPlugins,
     ],
     resolve: {
       alias: {
