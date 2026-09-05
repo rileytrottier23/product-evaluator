@@ -11,20 +11,30 @@ const app: Express = express();
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use(
   helmet({
-    crossOriginEmbedderPolicy: false, // allow iframe preview in Replit
+    crossOriginEmbedderPolicy: false, // allow iframe preview of the app
     contentSecurityPolicy: false,     // API-only server; no HTML to protect
   })
 );
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
-// In production the frontend is same-origin via the proxy, so we restrict
-// to the Replit dev domain. In development allow all origins.
+// In production the frontend is same-origin (api-server serves the built
+// client), so most requests carry no Origin. We additionally allow Railway's
+// own domains and any origins listed in ALLOWED_ORIGINS (comma-separated) —
+// e.g. a custom domain. In development allow all origins.
 const isProd = process.env.NODE_ENV === "production";
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 app.use(
   cors({
     origin: isProd
       ? (origin, cb) => {
-          if (!origin || /\.replit\.app$|\.replit\.dev$/.test(origin)) {
+          if (
+            !origin ||
+            /\.up\.railway\.app$/.test(origin) ||
+            allowedOrigins.includes(origin)
+          ) {
             cb(null, true);
           } else {
             cb(new Error("CORS: origin not allowed"));
